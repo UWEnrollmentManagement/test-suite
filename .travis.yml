@@ -4,7 +4,7 @@ php:
   - 7.0
 addons:
   code_climate:
-    repo_token: SET_ME
+    repo_token: d1f13573c781285460ef3429c52a463c6bc9bcb13f562c8f0add2db797616f28
 before_script:
   - sed -i '/phpdoc/d' composer.json
   - "export DISPLAY=:99.0"
