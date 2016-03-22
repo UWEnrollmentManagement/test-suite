@@ -1,0 +1,23 @@
+language: php
+php:
+  - 5.6
+  - 7.0
+addons:
+  code_climate:
+    repo_token: SET_ME
+before_script:
+  - sed -i '/phpdoc/d' composer.json
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - sleep 3
+  - "php -S localhost:8001 -t test/html/ > /dev/null 2>&1 &"
+  - sleep 3
+  - wget http://selenium-release.storage.googleapis.com/2.48/selenium-server-standalone-2.48.2.jar
+  - java -jar selenium-server-standalone-2.48.2.jar > /dev/null 2>&1 &
+  - sleep 15  # to wait for Selenium to be up and running
+  - composer install
+script:
+  - phpunit --configuration test/phpunit.xml test
+  - ./vendor/bin/phpcs --ignore=*/vendor/*,*/markov/* --standard=./vendor/athens/standard/ruleset.xml .
+after_script:
+  - vendor/bin/test-reporter
