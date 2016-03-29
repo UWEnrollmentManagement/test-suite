@@ -20,6 +20,7 @@
         </select>
         <br>
 
+        <input type="text" name="hidden-input" style="display:none">
 
         <br><br><input type="submit" value="Submit">
     </form>

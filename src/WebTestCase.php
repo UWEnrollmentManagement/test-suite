@@ -13,6 +13,43 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
 {
 
     /**
+     * Given an array of desired values and a field name, retrieve the desired value
+     * for that input, or return null.
+     *
+     * @param string   $inputName
+     * @param string[] $desiredValues
+     * @return null
+     */
+    protected static function getDesiredValue($inputName, array $desiredValues)
+    {
+        $inputName = strtok($inputName, '+');
+
+        foreach ($desiredValues as $key => $value) {
+            if (strpos($inputName, $key) === 0) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Filter out any elements which are not displayed.
+     *
+     * @param array $elements
+     * @return array
+     */
+    protected static function displayed(array $elements)
+    {
+        return array_filter(
+            $elements,
+            function ($element) {
+                return $element->displayed();
+            }
+        );
+    }
+
+    /**
      * Fill all of the form elements on the page.
      *
      * @param string[] $desiredValues An array of name => submissionValues to use in lieu of random data.
@@ -26,8 +63,13 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
         /** @var array $selectInputs */
         $selectInputs = $this->elements($this->using('css selector')->value('form select'));
 
-        /** @var array $nonSelectInputs */
-        $nonSelectInputs = $this->elements($this->using('css selector')->value('input:not([type=submit]), textarea'));
+        /** @var array $selectInputs */
+        $radioInputs = $this->elements($this->using('css selector')->value('form input[type=radio]'));
+
+        /** @var array $otherInputs */
+        $otherInputs = $this->elements(
+            $this->using('css selector')->value('input:not([type=submit]):not([type=radio]), textarea')
+        );
 
         foreach ($selectInputs as $selectInput) {
             $selectInput->click();
@@ -41,33 +83,33 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
             $submittedValues[] = $chosenOption->attribute('innerHTML');
         }
 
+        foreach (static::displayed($radioInputs) as $input) {
+            $desiredValue = static::getDesiredValue($input->attribute('name'), $desiredValues);
 
-        foreach ($nonSelectInputs as $nonSelectInput) {
-            $name = $nonSelectInput->attribute('name');
-            $name = strtok($name, '+');
-            $name = strrev(strtok(strrev($name), '-'));
+            if ($desiredValue === null || $desiredValue === $input->attribute('value')) {
+                $input->click();
+                $submittedValues[] = $input->attribute('value');
+            }
+        }
 
-            if ($nonSelectInput->displayed() === true) {
-                $nonSelectInput->click();
+        foreach (static::displayed($otherInputs) as $input) {
+            $desiredValue = static::getDesiredValue($input->attribute('name'), $desiredValues);
 
-                $submission = "";
+            $input->click();
 
-                if ($name !== "" && array_key_exists($name, $desiredValues) === true) {
-                    $submission = $desiredValues[$name];
-                } elseif ($nonSelectInput->attribute('type') === 'textarea') {
-                    $submission = $this->randomText(rand(100, 300));
-                    if ($submission === "") {
-                        $submission .= rand(100, 999999999);
-                    }
-                    $submission = trim(preg_replace('/\s+/', ' ', $submission));
-                } elseif ($nonSelectInput->attribute('type') === 'text') {
-                    $submission = $this->randomChars(5);
-                }
+            $submission = "";
 
-                if ($submission !== "") {
-                    $this->keys($submission);
-                    $submittedValues[] = $submission;
-                }
+            if ($desiredValue !== null) {
+                $submission = $desiredValue;
+            } elseif ($input->attribute('type') === 'textarea') {
+                $submission = $this->randomText(rand(100, 300));
+            } elseif ($input->attribute('type') === 'text') {
+                $submission = $this->randomChars(5);
+            }
+
+            if ($submission !== "") {
+                $this->keys($submission);
+                $submittedValues[] = $submission;
             }
         }
         return $submittedValues;

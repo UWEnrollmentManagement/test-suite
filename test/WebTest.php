@@ -35,6 +35,27 @@ class WebTest extends WebTestCase
     }
 
     /**
+     * WebTestCase shall provide a method for filtering displayed elements from
+     * undisplayed elements.
+     *
+     * @return void
+     */
+    public function testDisplayedFilter()
+    {
+        $this->url('/form.php');
+        $this->assertEquals('Form', $this->title());
+
+        $hiddenInput = $this->element($this->using('css selector')->value('input[name="hidden-input"]'));
+        $displayedInputs = $this->displayed($this->elements($this->using('css selector')->value('input')));
+
+        $this->assertNotEmpty($displayedInputs);
+
+        foreach ($displayedInputs as $input) {
+            $this->assertNotEquals($hiddenInput->attribute('name'), $input->attribute('name'));
+        }
+    }
+
+    /**
      * A test class using WebTestCase shall be able to fill a form with random
      * data, and submit.
      *
