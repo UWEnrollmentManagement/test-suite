@@ -2,6 +2,11 @@
 
 namespace UWDOEM\TestSuite;
 
+use PHPUnit_Extensions_Selenium2TestCase_WebDriverException;
+
+use PHPUnit_Extensions_Selenium2TestCase_Keys as Keys;
+use PHPUnit_Extensions_Selenium2TestCase_Element as Element;
+
 use Markov\Markov;
 
 /**
@@ -50,33 +55,82 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
     }
 
     /**
+     * Close the current Athens "multi-panel" panel.
+     *
+     * @return void
+     */
+    protected function closePanel()
+    {
+        $this->moveto($this->byCssSelector('nav.breadcrumbs li:first-child a'));
+        $this->click();
+        sleep(2);
+    }
+
+    /**
+     * @param Element $selectElement
+     * @param string  $labelValue
+     * @return boolean Whether or not an option was found with the indicated label value.
+     */
+    protected function selectOption(Element $selectElement, $labelValue)
+    {
+        $selectElement->click();
+
+        $enabledOptions = $selectElement->elements($this->using('css selector')->value('option:enabled'));
+
+        foreach ($enabledOptions as $option) {
+            if (trim($option->attribute('innerHTML')) === trim($labelValue)) {
+                $option->click();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Fill all of the form elements on the page.
      *
      * @param string[] $desiredValues An array of name => submissionValues to use in lieu of random data.
+     * @param string   $formSelector
      * @return string[] An array of submissionValues provided to the form.
      */
-    protected function fillForm(array $desiredValues = [])
+    protected function fillForm(array $desiredValues = [], $formSelector = 'form')
     {
         /** @var string[] $submittedValues */
         $submittedValues = [];
 
         /** @var array $selectInputs */
-        $selectInputs = $this->elements($this->using('css selector')->value('form select'));
+        $selectInputs = $this->elements($this->using('css selector')->value("$formSelector select"));
 
-        /** @var array $selectInputs */
-        $radioInputs = $this->elements($this->using('css selector')->value('form input[type=radio]'));
+        /** @var array $radioInputs */
+        $radioInputs = $this->elements($this->using('css selector')->value("$formSelector input[type=radio]"));
+
+        /** @var array $fileInputs */
+        $fileInputs = $this->elements($this->using('css selector')->value("$formSelector input[type=file]"));
 
         /** @var array $otherInputs */
         $otherInputs = $this->elements(
-            $this->using('css selector')->value('input:not([type=submit]):not([type=radio]), textarea')
+            $this->using('css selector')->value(
+                "$formSelector input:not([type=submit]):not([type=file]):not([type=radio]), " .
+                    "$formSelector textarea, $formSelector .note-editing-area"
+            )
         );
 
         foreach ($selectInputs as $selectInput) {
+            $desiredValue = static::getDesiredValue($selectInput->attribute('name'), $desiredValues);
+
             $selectInput->click();
 
             $enabledOptions = $selectInput->elements($this->using('css selector')->value('option:enabled'));
 
             $chosenOption = $enabledOptions[array_rand($enabledOptions)];
+            if ($desiredValue !== null) {
+                foreach ($enabledOptions as $enabledOption) {
+                    if (trim($enabledOption->attribute('innerHTML')) === trim($desiredValue)) {
+                        $chosenOption = $enabledOption;
+                    }
+                }
+            }
 
             $chosenOption->click();
 
@@ -86,10 +140,16 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
         foreach (static::displayed($radioInputs) as $input) {
             $desiredValue = static::getDesiredValue($input->attribute('name'), $desiredValues);
 
-            if ($desiredValue === null || $desiredValue === $input->attribute('value')) {
+            $label = $this->byCssSelector('label[data-value-for="' . $input->attribute('value') . '"]')
+                ->attribute('innerHTML');
+            if ($desiredValue === null || $desiredValue === trim($label)) {
                 $input->click();
-                $submittedValues[] = $input->attribute('value');
+                $submittedValues[] = trim($label);
             }
+        }
+
+        foreach (static::displayed($fileInputs) as $input) {
+            // Figure out something to do.
         }
 
         foreach (static::displayed($otherInputs) as $input) {
@@ -97,18 +157,21 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
 
             $input->click();
 
-            $submission = "";
-
             if ($desiredValue !== null) {
                 $submission = $desiredValue;
             } elseif ($input->attribute('type') === 'textarea') {
                 $submission = $this->randomText(rand(100, 300));
-            } elseif ($input->attribute('type') === 'text') {
+            } else {
                 $submission = $this->randomChars(5);
             }
 
             if ($submission !== "") {
+                /* Select All */
+                $this->ctrlA();
+
+                /* Key the Data */
                 $this->keys($submission);
+
                 $submittedValues[] = $submission;
             }
         }
@@ -134,6 +197,18 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
             sleep(1);
         }
         sleep(4);
+    }
+
+    /**
+     * Key in a Ctrl-A
+     *
+     * @return void
+     */
+    protected function ctrlA()
+    {
+        $this->keys(Keys::CONTROL);
+        $this->keys('a');
+        $this->keys(Keys::CONTROL);
     }
 
     /**
@@ -188,5 +263,23 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
         $markov = Markov::generate_markov_text($approximateLength, $markov_table, $markovAssociativityLength);
 
         return preg_replace('/[^,;. a-zA-Z0-9_-]|[,;. ]$/s', '', $markov);
+    }
+
+    /**
+     * Predicate which reports whether an element with the given CSS selector exists.
+     *
+     * @param string $selector
+     * @return boolean
+     */
+    protected function elementExistsByCss($selector)
+    {
+        echo "($selector)";
+        try {
+            $this->byCssSelector($selector);
+        } catch (PHPUnit_Extensions_Selenium2TestCase_WebDriverException $e) {
+            return false;
+        }
+
+        return true;
     }
 }
