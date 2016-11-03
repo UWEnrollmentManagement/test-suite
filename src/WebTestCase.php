@@ -273,7 +273,6 @@ class WebTestCase extends \PHPUnit_Extensions_Selenium2TestCase
      */
     protected function elementExistsByCss($selector)
     {
-        echo "($selector)";
         try {
             $this->byCssSelector($selector);
         } catch (PHPUnit_Extensions_Selenium2TestCase_WebDriverException $e) {
